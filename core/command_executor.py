@@ -24,8 +24,10 @@ class CommandExecutor(QObject):
             return
 
         signal_bus.output_received.emit(f"> {command}", "input")
+        signal_bus.message_sent.emit("Running")
 
         self.current_process = QProcess()
+
         self.current_process.readyReadStandardOutput.connect(self._handle_stdout)
         self.current_process.readyReadStandardError.connect(self._handle_stderr)
         self.current_process.finished.connect(self._handle_process_finished)
@@ -59,9 +61,24 @@ class CommandExecutor(QObject):
     def _handle_process_finished(self):
         """命令执行完成处理"""
         signal_bus.output_received.emit(f"\n[进程结束，退出码 {self.current_process.exitCode()}]", "system")
+        signal_bus.message_sent.emit("就绪")
         self.current_process = None
+
     def stop_current_process(self):
-        """终止当前运行的进程"""
-        if self.current_process and self.current_process.state() == QProcess.Running:
-            self.current_process.kill()
-            signal_bus.output_received.emit("进程已被强制终止", "error")
+        """终止当前运行的进程及其子进程"""
+        pid = self.current_process.processId()
+        if self.current_process is not None and self.current_process.state() == QProcess.Running:
+            if sys.platform == "win32":
+                # Windows下终止整个进程树
+                self.current_process.kill()
+                pid = self.current_process.processId()
+                signal_bus.output_received.emit("进程树已强制终止", "error")
+            else:
+                # Unix系系统终止进程组
+                self.current_process.terminate()
+                self.current_process.waitForFinished(500)
+                if self.current_process.state() == QProcess.Running:
+                    self.current_process.kill()
+            self.current_process.waitForFinished()
+        else:
+            signal_bus.output_received.emit("没有正在运行的进程", "info")
