@@ -1,0 +1,4 @@
+from.console_tab import ConsoleWidget
+from.file_tree import FileTreeWidget
+from.setting_tab import SettingTab
+from.script_tab import CommandsButtonWidget
